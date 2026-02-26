@@ -1,7 +1,0 @@
-{
-  "source_path": "/Users/z5551834/Library/Mobile Documents/com~apple~CloudDocs/Desktop/3. PhD/codex projects/lsm_image_tools/modules/tif_2_png/data_raw/CK221124_21/CK221124_21_ch01.tif",
-  "image_description": "<OME xmlns=\"http://www.openmicroscopy.org/Schemas/OME/2016-06\"><Image ID=\"Image:0\" Name=\"CK221124_21_ch01\"><Pixels ID=\"Pixels:0\" DimensionOrder=\"XYCZT\" Type=\"uint8\" SizeX=\"1024\" SizeY=\"1024\" SizeC=\"3\" SizeZ=\"1\" SizeT=\"1\" PhysicalSizeX=\"2.372188069\" PhysicalSizeXUnit=\"?m\" PhysicalSizeY=\"2.372188069\" PhysicalSizeYUnit=\"?m\"><Channel ID=\"Channel:0:0\" SamplesPerPixel=\"1\" /><Channel ID=\"Channel:0:1\" SamplesPerPixel=\"1\" /><Channel ID=\"Channel:0:2\" SamplesPerPixel=\"1\" /><TiffData /></Pixels></Image></OME>",
-  "x_resolution": 4215.517366133707,
-  "y_resolution": 4215.517366133707,
-  "resolution_unit": 3
-}

@@ -1,1 +1,6 @@
 .DS_Store
+
+# Raw inputs and generated outputs
+**/data_raw/
+**/outputs/
+**/runs/
