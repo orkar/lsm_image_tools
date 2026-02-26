@@ -1,0 +1,28 @@
+[paths]
+base_dir = ".."
+input_dir = "data_raw"
+output_dir = "outputs"
+recursive = true
+
+[grouping]
+file_glob = "*_ch*.tif"
+channel_regex = "^(?P<stem>.+)_ch(?P<channel>\\d+)$"
+
+[output]
+format = "tiff"            # tiff | png | jpeg
+overwrite = true
+suffix = "_composite"
+jpeg_quality = 95
+preserve_metadata = true
+timestamped_run_subdir = true
+run_subdir_prefix = "run"
+run_subdir_datetime_format = "%Y%m%d_%H%M%S"
+
+[processing]
+normalize_to_uint8 = true
+fallback_colors = [
+  [255, 0, 0],
+  [0, 255, 0],
+  [0, 0, 255],
+  [255, 255, 255],
+]
