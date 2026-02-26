@@ -1,6 +1,9 @@
 .DS_Store
 
 # Raw inputs and generated outputs
-**/data_raw/
-**/outputs/
-**/runs/
+**/data_raw/**
+**/outputs/**
+**/runs/**
+!**/data_raw/.gitkeep
+!**/outputs/.gitkeep
+!**/runs/.gitkeep
