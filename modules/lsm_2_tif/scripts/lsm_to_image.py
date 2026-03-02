@@ -103,6 +103,20 @@ def _resolve_path(path_value: str, base_dir: Path) -> Path:
     return (base_dir / p).resolve()
 
 
+def _sanitize_for_folder_name(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
+    cleaned = cleaned.strip("._-")
+    return cleaned or "input"
+
+
+def _default_run_prefix_from_input(input_dir: Path) -> str:
+    return f"{_sanitize_for_folder_name(input_dir.name)}_output"
+
+
+def _default_timestamped_for_output_dir(output_dir: Path) -> bool:
+    return output_dir.name.strip().lower().startswith("output")
+
+
 def _parse_fallback_colors(raw_colors: list[object]) -> list[tuple[int, int, int]]:
     parsed: list[tuple[int, int, int]] = []
     for value in raw_colors:
@@ -169,6 +183,10 @@ def load_config(config_path: Path) -> AppConfig:
         output_dir=_resolve_path(paths_raw.get("output_dir", "outputs"), base_dir),
         recursive=bool(paths_raw.get("recursive", False)),
     )
+    timestamped_raw = output_raw.get("timestamped_run_subdir")
+    timestamped_default = (
+        _default_timestamped_for_output_dir(paths.output_dir) if timestamped_raw is None else bool(timestamped_raw)
+    )
     output = OutputConfig(
         format_name=_normalize_format(output_raw.get("format", "png")),
         channel_mode=_normalize_channel_mode(output_raw.get("channel_mode", "both")),
@@ -176,8 +194,8 @@ def load_config(config_path: Path) -> AppConfig:
         jpeg_quality=int(output_raw.get("jpeg_quality", 95)),
         preserve_metadata=bool(output_raw.get("preserve_metadata", True)),
         retain_metadata_colors=bool(output_raw.get("retain_metadata_colors", False)),
-        timestamped_run_subdir=bool(output_raw.get("timestamped_run_subdir", False)),
-        run_subdir_prefix=str(output_raw.get("run_subdir_prefix", "run")),
+        timestamped_run_subdir=timestamped_default,
+        run_subdir_prefix=str(output_raw.get("run_subdir_prefix", "auto")),
         run_subdir_datetime_format=str(output_raw.get("run_subdir_datetime_format", "%Y%m%d_%H%M%S")),
     )
     processing = ProcessingConfig(
@@ -711,7 +729,7 @@ def iter_outputs_for_file(
             yield (f"{stem}{suffix}", build_composite(stack_uint8, config.processing))
 
 
-def convert_one_file(lsm_path: Path, config: AppConfig) -> list[Path]:
+def convert_one_file(lsm_path: Path, config: AppConfig, run_stamp: str) -> list[Path]:
     stack, backend = read_lsm_channels(lsm_path, config.processing)
     stack_uint8 = normalize_stack_to_uint8(stack, normalize=config.processing.normalize_to_uint8)
     spatial_metadata = extract_spatial_metadata(lsm_path) if config.output.preserve_metadata else None
@@ -733,7 +751,8 @@ def convert_one_file(lsm_path: Path, config: AppConfig) -> list[Path]:
     created: list[Path] = []
 
     for out_stem, image_arr in iter_outputs_for_file(lsm_path.stem, stack_uint8, config, channel_colors):
-        out_path = config.paths.output_dir / lsm_path.stem / f"{out_stem}{out_ext}"
+        stamped_stem = f"{out_stem}_{MODULE_ROOT.name}_{run_stamp}"
+        out_path = config.paths.output_dir / lsm_path.stem / f"{stamped_stem}{out_ext}"
         if out_path.exists() and not config.output.overwrite:
             logging.info("Skipping existing file: %s", out_path)
             continue
@@ -742,7 +761,7 @@ def convert_one_file(lsm_path: Path, config: AppConfig) -> list[Path]:
             out_path,
             config.output,
             spatial_metadata=spatial_metadata,
-            image_name=out_stem,
+            image_name=stamped_stem,
         )
         created.append(out_path)
 
@@ -792,7 +811,10 @@ def resolve_effective_output_dir(config: AppConfig) -> Path:
     if not config.output.timestamped_run_subdir:
         return config.paths.output_dir
     stamp = datetime.now().strftime(config.output.run_subdir_datetime_format)
-    folder_name = f"{config.output.run_subdir_prefix}_{stamp}" if config.output.run_subdir_prefix else stamp
+    prefix_raw = config.output.run_subdir_prefix.strip()
+    if not prefix_raw or prefix_raw.lower() == "auto":
+        prefix_raw = _default_run_prefix_from_input(config.paths.input_dir)
+    folder_name = f"{prefix_raw}_{stamp}" if prefix_raw else stamp
     return (config.paths.output_dir / folder_name).resolve()
 
 
@@ -852,9 +874,10 @@ def main(argv: list[str] | None = None) -> int:
 
     failures = 0
     total_outputs = 0
+    run_stamp = datetime.now().strftime(config.output.run_subdir_datetime_format)
     for lsm_path in lsm_files:
         try:
-            created = convert_one_file(lsm_path, config)
+            created = convert_one_file(lsm_path, config, run_stamp)
             total_outputs += len(created)
         except Exception as exc:
             failures += 1

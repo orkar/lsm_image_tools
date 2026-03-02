@@ -10,5 +10,5 @@ compression_level = 6
 preserve_metadata_in_png = true
 write_metadata_sidecar = true
 timestamped_run_subdir = true
-run_subdir_prefix = "run"
+run_subdir_prefix = "auto"
 run_subdir_datetime_format = "%Y%m%d_%H%M%S"

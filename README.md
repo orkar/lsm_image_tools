@@ -9,6 +9,7 @@ Module outputs are configured for TIFF metadata retention so downstream modules 
 - `modules/composite_creator`: Build color composites from single-channel TIFF images.
 - `modules/scale_bar`: Add a bottom-right scale bar to existing images.
 - `modules/tif_2_png`: Convert TIFF images to PNG.
+- `modules/image_adjustment`: Apply minimum/maximum, brightness, contrast, and gamma adjustments.
 
 Each module owns its own:
 

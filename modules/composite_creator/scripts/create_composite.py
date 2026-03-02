@@ -95,6 +95,20 @@ def _resolve_path(path_value: str, base_dir: Path) -> Path:
     return (base_dir / p).resolve()
 
 
+def _sanitize_for_folder_name(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
+    cleaned = cleaned.strip("._-")
+    return cleaned or "input"
+
+
+def _default_run_prefix_from_input(input_dir: Path) -> str:
+    return f"{_sanitize_for_folder_name(input_dir.name)}_output"
+
+
+def _default_timestamped_for_output_dir(output_dir: Path) -> bool:
+    return output_dir.name.strip().lower().startswith("output")
+
+
 def _parse_fallback_colors(raw_colors: list[object]) -> list[tuple[int, int, int]]:
     parsed: list[tuple[int, int, int]] = []
     for value in raw_colors:
@@ -118,12 +132,18 @@ def load_config(config_path: Path) -> AppConfig:
     processing_raw = raw.get("processing", {})
     base_dir = _resolve_path(paths_raw.get("base_dir", ".."), config_path.parent)
 
+    paths = PathsConfig(
+        input_dir=_resolve_path(paths_raw.get("input_dir", "data_raw"), base_dir),
+        output_dir=_resolve_path(paths_raw.get("output_dir", "outputs"), base_dir),
+        recursive=bool(paths_raw.get("recursive", True)),
+    )
+    timestamped_raw = output_raw.get("timestamped_run_subdir")
+    timestamped_default = (
+        _default_timestamped_for_output_dir(paths.output_dir) if timestamped_raw is None else bool(timestamped_raw)
+    )
+
     return AppConfig(
-        paths=PathsConfig(
-            input_dir=_resolve_path(paths_raw.get("input_dir", "data_raw"), base_dir),
-            output_dir=_resolve_path(paths_raw.get("output_dir", "outputs"), base_dir),
-            recursive=bool(paths_raw.get("recursive", True)),
-        ),
+        paths=paths,
         grouping=GroupingConfig(
             file_glob=str(grouping_raw.get("file_glob", "*_ch*.tif")),
             channel_regex=str(grouping_raw.get("channel_regex", r"^(?P<stem>.+)_ch(?P<channel>\d+)$")),
@@ -134,8 +154,8 @@ def load_config(config_path: Path) -> AppConfig:
             suffix=str(output_raw.get("suffix", "_composite")),
             jpeg_quality=int(output_raw.get("jpeg_quality", 95)),
             preserve_metadata=bool(output_raw.get("preserve_metadata", True)),
-            timestamped_run_subdir=bool(output_raw.get("timestamped_run_subdir", False)),
-            run_subdir_prefix=str(output_raw.get("run_subdir_prefix", "run")),
+            timestamped_run_subdir=timestamped_default,
+            run_subdir_prefix=str(output_raw.get("run_subdir_prefix", "auto")),
             run_subdir_datetime_format=str(output_raw.get("run_subdir_datetime_format", "%Y%m%d_%H%M%S")),
         ),
         processing=ProcessingConfig(
@@ -557,7 +577,10 @@ def resolve_effective_output_dir(config: AppConfig) -> Path:
     if not config.output.timestamped_run_subdir:
         return config.paths.output_dir
     stamp = datetime.now().strftime(config.output.run_subdir_datetime_format)
-    folder_name = f"{config.output.run_subdir_prefix}_{stamp}" if config.output.run_subdir_prefix else stamp
+    prefix_raw = config.output.run_subdir_prefix.strip()
+    if not prefix_raw or prefix_raw.lower() == "auto":
+        prefix_raw = _default_run_prefix_from_input(config.paths.input_dir)
+    folder_name = f"{prefix_raw}_{stamp}" if prefix_raw else stamp
     return (config.paths.output_dir / folder_name).resolve()
 
 
@@ -601,6 +624,7 @@ def main(argv: list[str] | None = None) -> int:
     ext = EXT_BY_FORMAT[config.output.format_name]
     failures = 0
     composites = 0
+    run_stamp = datetime.now().strftime(config.output.run_subdir_datetime_format)
 
     effective_output_dir = resolve_effective_output_dir(config)
     config.paths.output_dir = effective_output_dir
@@ -647,7 +671,8 @@ def main(argv: list[str] | None = None) -> int:
         try:
             composite = compose_rgb(channels, colors)
             rel_parent = parent.relative_to(config.paths.input_dir)
-            out_path = (config.paths.output_dir / rel_parent / f"{stem}{config.output.suffix}{ext}").resolve()
+            stamped_stem = f"{stem}{config.output.suffix}_{MODULE_ROOT.name}_{run_stamp}"
+            out_path = (config.paths.output_dir / rel_parent / f"{stamped_stem}{ext}").resolve()
             if out_path.exists() and not config.output.overwrite:
                 logging.info("Skipping existing file: %s", out_path)
                 continue
@@ -663,7 +688,7 @@ def main(argv: list[str] | None = None) -> int:
                     out_path,
                     config.output,
                     spatial_metadata=group_spatial_metadata,
-                    image_name=f"{stem}{config.output.suffix}",
+                    image_name=stamped_stem,
                 )
                 composites += 1
                 if group_spatial_metadata is not None and group_spatial_metadata.physical_size_x_um is not None:

@@ -1,7 +1,7 @@
 [paths]
 base_dir = ".."
 input_dir = "data_raw"
-output_dir = "outputs"
+output_dir = "runs/V1"
 recursive = true
 
 [output]
@@ -9,17 +9,15 @@ format = "tiff"                # same | tiff | png | jpeg
 overwrite = true
 jpeg_quality = 95
 preserve_metadata = true
-timestamped_run_subdir = true
+timestamped_run_subdir = false
 run_subdir_prefix = "auto"
 run_subdir_datetime_format = "%Y%m%d_%H%M%S"
 
-[scale_bar]
-enabled = true
-length_um = 300.0
-# length_px overrides length_um when set
-# length_px = 120
-# pixel_size_um = 2.3721880688565572
-thickness_px = 8
-margin_px = 24
-color = "white"
-opacity = 1.0
+[adjustment]
+minimum = 0.0
+maximum = 255.0
+brightness = 1.0
+contrast = 1.0
+gamma = 1.0
+normalize_input_to_uint8 = true
+keep_alpha = true

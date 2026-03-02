@@ -12,7 +12,7 @@ jpeg_quality = 95
 preserve_metadata = true
 retain_metadata_colors = true
 timestamped_run_subdir = true
-run_subdir_prefix = "run"
+run_subdir_prefix = "auto"
 run_subdir_datetime_format = "%Y%m%d_%H%M%S"
 
 [processing]
@@ -28,4 +28,3 @@ fallback_colors = [
   [255, 255, 255],
 ]
 channel_colors = ["red", "magenta", "greay", "green"]
-

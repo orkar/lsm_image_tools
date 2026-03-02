@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import shutil
 import sys
 import xml.etree.ElementTree as ET
@@ -54,6 +55,20 @@ def _resolve_path(path_value: str, base_dir: Path) -> Path:
     return (base_dir / p).resolve()
 
 
+def _sanitize_for_folder_name(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
+    cleaned = cleaned.strip("._-")
+    return cleaned or "input"
+
+
+def _default_run_prefix_from_input(input_dir: Path) -> str:
+    return f"{_sanitize_for_folder_name(input_dir.name)}_output"
+
+
+def _default_timestamped_for_output_dir(output_dir: Path) -> bool:
+    return output_dir.name.strip().lower().startswith("output")
+
+
 def load_config(config_path: Path) -> AppConfig:
     config_path = config_path.resolve()
     with config_path.open("rb") as f:
@@ -68,13 +83,17 @@ def load_config(config_path: Path) -> AppConfig:
         output_dir=_resolve_path(paths_raw.get("output_dir", "outputs"), base_dir),
         recursive=bool(paths_raw.get("recursive", True)),
     )
+    timestamped_raw = output_raw.get("timestamped_run_subdir")
+    timestamped_default = (
+        _default_timestamped_for_output_dir(paths.output_dir) if timestamped_raw is None else bool(timestamped_raw)
+    )
     output = OutputConfig(
         overwrite=bool(output_raw.get("overwrite", True)),
         compression_level=max(0, min(9, int(output_raw.get("compression_level", 6)))),
         preserve_metadata_in_png=bool(output_raw.get("preserve_metadata_in_png", True)),
         write_metadata_sidecar=bool(output_raw.get("write_metadata_sidecar", True)),
-        timestamped_run_subdir=bool(output_raw.get("timestamped_run_subdir", False)),
-        run_subdir_prefix=str(output_raw.get("run_subdir_prefix", "run")),
+        timestamped_run_subdir=timestamped_default,
+        run_subdir_prefix=str(output_raw.get("run_subdir_prefix", "auto")),
         run_subdir_datetime_format=str(output_raw.get("run_subdir_datetime_format", "%Y%m%d_%H%M%S")),
     )
     return AppConfig(paths=paths, output=output)
@@ -254,7 +273,10 @@ def resolve_effective_output_dir(config: AppConfig) -> Path:
     if not config.output.timestamped_run_subdir:
         return config.paths.output_dir
     stamp = datetime.now().strftime(config.output.run_subdir_datetime_format)
-    folder_name = f"{config.output.run_subdir_prefix}_{stamp}" if config.output.run_subdir_prefix else stamp
+    prefix_raw = config.output.run_subdir_prefix.strip()
+    if not prefix_raw or prefix_raw.lower() == "auto":
+        prefix_raw = _default_run_prefix_from_input(config.paths.input_dir)
+    folder_name = f"{prefix_raw}_{stamp}" if prefix_raw else stamp
     return (config.paths.output_dir / folder_name).resolve()
 
 
@@ -303,9 +325,11 @@ def main(argv: list[str] | None = None) -> int:
 
     failures = 0
     converted = 0
+    run_stamp = datetime.now().strftime(config.output.run_subdir_datetime_format)
     for src in tiff_files:
         rel = src.relative_to(config.paths.input_dir)
-        dst = (effective_output_dir / rel).with_suffix(".png")
+        stamped_stem = f"{src.stem}_{MODULE_ROOT.name}_{run_stamp}"
+        dst = (effective_output_dir / rel).with_name(f"{stamped_stem}.png")
         if dst.exists() and not config.output.overwrite:
             logging.info("Skipping existing file: %s", dst)
             continue
